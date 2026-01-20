@@ -1,46 +1,47 @@
-import Elysia, { t } from "elysia";
-import { auth } from "../auth";
-import { UnauthorizedError } from "../errors/unauthorized-error";
-import { db } from "../../db/connection";
-import { orders } from "../../db/schema";
+import { db } from "@/db/connection";
+import { orders } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import Elysia, { t } from "elysia";
+import { authentication } from "../authentication";
+import { UnauthorizedError } from "./errors/unauthorized-error";
 
-export const dispatchOrderRoute = new Elysia().use(auth).patch(
-  "/orders/:orderId/dispatch",
-  async ({ getCurrentUser, params, set }) => {
-    const { orderId } = params;
-    const { restaurantId } = await getCurrentUser();
-
-    if (!restaurantId) {
-      throw new UnauthorizedError();
-    }
+export const dispatchOrder = new Elysia().use(authentication).patch(
+  "/orders/:id/dispatch",
+  async ({ getManagedRestaurantId, set, params }) => {
+    const { id: orderId } = params;
+    const restaurantId = await getManagedRestaurantId();
 
     const order = await db.query.orders.findFirst({
-      where(fields, { eq }) {
-        return eq(fields.id, orderId);
+      where(fields, { eq, and }) {
+        return and(
+          eq(fields.id, orderId),
+          eq(fields.restaurantId, restaurantId),
+        );
       },
     });
 
     if (!order) {
-      set.status = 400;
-
-      return { message: "Order not found" };
+      throw new UnauthorizedError();
     }
 
     if (order.status !== "processing") {
       set.status = 400;
 
-      return { message: "Order is not processing" };
+      return { message: "O pedido já foi enviado ao cliente." };
     }
 
     await db
       .update(orders)
-      .set({ status: "delivering" })
+      .set({
+        status: "delivering",
+      })
       .where(eq(orders.id, orderId));
+
+    set.status = 204;
   },
   {
     params: t.Object({
-      orderId: t.String(),
+      id: t.String(),
     }),
-  }
+  },
 );

@@ -1,14 +1,15 @@
+import { db } from "@/db/connection";
+import { authLinks } from "@/db/schema";
 import dayjs from "dayjs";
 import { eq } from "drizzle-orm";
 import Elysia, { t } from "elysia";
-import { db } from "../../db/connection";
-import { authLinks } from "../../db/schema";
-import { auth } from "../auth";
+import { authentication } from "../authentication";
+import { UnauthorizedError } from "./errors/unauthorized-error";
 
-export const authenticateFromLinkRoute = new Elysia().use(auth).get(
+export const authenticateFromLink = new Elysia().use(authentication).get(
   "/auth-links/authenticate",
-  async ({ query, signUser, redirect }) => {
-    const { code, redirect: redirectUrl } = query;
+  async ({ signUser, query, set }) => {
+    const { code, redirect } = query;
 
     const authLinkFromCode = await db.query.authLinks.findFirst({
       where(fields, { eq }) {
@@ -16,16 +17,13 @@ export const authenticateFromLinkRoute = new Elysia().use(auth).get(
       },
     });
 
-    if (!authLinkFromCode)
-      throw new Error("Invalid or expired authentication link");
+    if (!authLinkFromCode) {
+      throw new UnauthorizedError();
+    }
 
-    const daysSinceAuthLinkWasCreated = dayjs().diff(
-      authLinkFromCode.createdAt,
-      "days"
-    );
-
-    if (daysSinceAuthLinkWasCreated > 7)
-      throw new Error("Authentication link has expired");
+    if (dayjs().diff(authLinkFromCode.createdAt, "days") > 7) {
+      throw new UnauthorizedError();
+    }
 
     const managedRestaurant = await db.query.restaurants.findFirst({
       where(fields, { eq }) {
@@ -40,12 +38,12 @@ export const authenticateFromLinkRoute = new Elysia().use(auth).get(
 
     await db.delete(authLinks).where(eq(authLinks.code, code));
 
-    return redirect(redirectUrl, 302);
+    set.redirect = redirect;
   },
   {
     query: t.Object({
       code: t.String(),
       redirect: t.String(),
     }),
-  }
+  },
 );

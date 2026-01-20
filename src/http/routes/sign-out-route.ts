@@ -1,10 +1,8 @@
 import Elysia from "elysia";
-import { auth } from "../auth";
+import { authentication } from "../authentication";
 
-export const signOutRoute = new Elysia()
-  .use(auth)
-  .post("/sign-out", async ({ cookie, cookie: { auth } }) => {
-    auth?.remove();
-
-    delete cookie.auth;
+export const signOut = new Elysia()
+  .use(authentication)
+  .post("/sign-out", async ({ signOut }) => {
+    signOut();
   });

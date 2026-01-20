@@ -1,28 +1,29 @@
-import Elysia, { t } from "elysia";
-import { auth } from "../auth";
-import { UnauthorizedError } from "../errors/unauthorized-error";
-import { db } from "../../db/connection";
+import { db } from "@/db/connection";
+import { orders, users } from "@/db/schema";
+import { and, count, desc, eq, ilike, sql } from "drizzle-orm";
 import { createSelectSchema } from "drizzle-typebox";
-import { orders, users } from "../../db/schema";
-import { and, count, desc, eq, getTableColumns, ilike, sql } from "drizzle-orm";
+import Elysia, { t } from "elysia";
+import { authentication } from "../authentication";
 
-export const getOrdersRoute = new Elysia().use(auth).get(
+export const getOrders = new Elysia().use(authentication).get(
   "/orders",
-  async ({ getCurrentUser, query }) => {
+  async ({ query, getCurrentUser, set }) => {
+    const { pageIndex, orderId, customerName, status } = query;
     const { restaurantId } = await getCurrentUser();
-    const { customerName, orderId, status, pageIndex } = query;
 
     if (!restaurantId) {
-      throw new UnauthorizedError();
+      set.status = 401;
+
+      throw new Error("User is not a restaurant manager.");
     }
 
     const baseQuery = db
       .select({
         orderId: orders.id,
-        createdAt: orders.created_at,
+        createdAt: orders.createdAt,
         status: orders.status,
-        total: orders.totalInCents,
         customerName: users.name,
+        total: orders.totalInCents,
       })
       .from(orders)
       .innerJoin(users, eq(users.id, orders.customerId))
@@ -31,41 +32,40 @@ export const getOrdersRoute = new Elysia().use(auth).get(
           eq(orders.restaurantId, restaurantId),
           orderId ? ilike(orders.id, `%${orderId}%`) : undefined,
           status ? eq(orders.status, status) : undefined,
-          customerName ? ilike(users.name, `%${customerName}%`) : undefined
-        )
+          customerName ? ilike(users.name, `%${customerName}%`) : undefined,
+        ),
       );
 
-    const [amountOfOrdersQuery, allOrders] = await Promise.all([
-      db.select({ count: count() }).from(baseQuery.as("baseQuery")),
-      db
-        .select()
-        .from(baseQuery.as("baseQuery"))
-        .offset(pageIndex * 10)
-        .limit(10)
-        .orderBy((fields) => {
-          return [
-            sql`CASE ${fields.status}
-              WHEN "pending" THEN 1
-              WHEN "processing" THEN 2
-              WHEN "delivering" THEN 3
-              WHEN "delivered" THEN 4
-              WHEN "canceled" THEN 99
-            END`,
-            desc(fields.createdAt),
-          ];
-        }),
-    ]);
+    const [ordersCount] = await db
+      .select({ count: count() })
+      .from(baseQuery.as("baseQuery"));
 
-    const amountOfOrders = amountOfOrdersQuery[0]?.count ?? 0;
+    const allOrders = await baseQuery
+      .offset(pageIndex * 10)
+      .limit(10)
+      .orderBy((fields) => {
+        return [
+          sql`CASE ${fields.status} 
+            WHEN 'pending' THEN 1
+            WHEN 'processing' THEN 2
+            WHEN 'delivering' THEN 3
+            WHEN 'delivered' THEN 4
+            WHEN 'canceled' THEN 99
+          END`,
+          desc(fields.createdAt),
+        ];
+      });
 
-    return {
+    const result = {
       orders: allOrders,
       meta: {
         pageIndex,
         perPage: 10,
-        totalCount: amountOfOrders,
+        totalCount: ordersCount.count,
       },
     };
+
+    return result;
   },
   {
     query: t.Object({
@@ -74,5 +74,5 @@ export const getOrdersRoute = new Elysia().use(auth).get(
       status: t.Optional(createSelectSchema(orders).properties.status),
       pageIndex: t.Numeric({ minimum: 0 }),
     }),
-  }
+  },
 );

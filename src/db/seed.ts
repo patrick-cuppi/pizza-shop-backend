@@ -1,109 +1,214 @@
 /* eslint-disable drizzle/enforce-delete-with-where */
 
 import { faker } from "@faker-js/faker";
+import { createId } from "@paralleldrive/cuid2";
 import chalk from "chalk";
 import { db } from "./connection";
 import {
   authLinks,
-  orderItems,
+  evaluations,
   orders,
   products,
   restaurants,
   users,
-} from "./schema/index";
-import { createId } from "@paralleldrive/cuid2";
+} from "./schema";
+import { orderItems } from "./schema/order-items";
 
 /**
  * Reset database
  */
-await db.delete(users);
-await db.delete(restaurants);
 await db.delete(orderItems);
 await db.delete(orders);
+await db.delete(evaluations);
 await db.delete(products);
+await db.delete(restaurants);
 await db.delete(authLinks);
+await db.delete(users);
 
-console.log(chalk.yellow("Database reset complete."));
-
-/**
- * Create fake customers
- */
-const [customer] = await db
-  .insert(users)
-  .values(
-    Array.from({ length: 10 }).map(() => ({
-      name: faker.person.fullName(),
-      email: faker.internet.email(),
-      phone: faker.phone.number(),
-    }))
-  )
-  .returning();
-
-console.log(chalk.green("Created fake customers."));
+console.log(chalk.yellow("✔ Database reset"));
 
 /**
- * Create fake manager
+ * Create customers
  */
-const [manager] = await db
+const [customer1, customer2] = await db
   .insert(users)
   .values([
     {
       name: faker.person.fullName(),
-      email: "admin@admin.com",
-      phone: faker.phone.number(),
-      role: "manager",
+      email: faker.internet.email(),
+      role: "customer",
+    },
+    {
+      name: faker.person.fullName(),
+      email: faker.internet.email(),
+      role: "customer",
     },
   ])
-  .returning({
-    id: users.id,
-  });
+  .returning();
 
-console.log(chalk.green("Created fake manager."));
+if (!customer1 || !customer2) {
+  throw new Error("Failed to create customers");
+}
+
+console.log(chalk.yellow("✔ Created customers"));
 
 /**
- * Create fake restaurants
+ * Create restaurant manager
+ */
+const [manager] = await db
+  .insert(users)
+  .values({
+    name: faker.person.fullName(),
+    email: "john_doe@example.com",
+    role: "manager",
+  })
+  .returning();
+
+if (!manager) {
+  throw new Error("Failed to create manager");
+}
+
+console.log(chalk.yellow("✔ Created manager"));
+
+/**
+ * Create restaurant
  */
 const [restaurant] = await db
   .insert(restaurants)
-  .values(
-    Array.from({ length: 5 }).map(() => ({
-      name: faker.company.name(),
-      description: faker.company.catchPhrase(),
-      managerId: manager?.id,
-    }))
-  )
+  .values({
+    name: faker.company.name(),
+    description: faker.lorem.paragraph(),
+    managerId: manager.id,
+  })
   .returning();
 
-console.log(chalk.magenta("Created fake restaurants."));
+  if (!restaurant) {
+    throw new Error("Failed to create restaurant");
+  }
+
+  console.log(chalk.yellow("✔ Created restaurant"));
 
 /**
- * Create fake products
+ * Create products
  */
-
 const availableProducts = await db
   .insert(products)
-  .values(
-    Array.from({ length: 20 }).map(() => ({
+  .values([
+    {
       name: faker.commerce.productName(),
-      description: faker.commerce.productDescription(),
-      priceInCents: Math.round(
-        Number(faker.commerce.price({ min: 5, max: 50 })) * 100
+      priceInCents: Number(
+        faker.commerce.price({
+          min: 190,
+          max: 490,
+          dec: 0,
+        }),
       ),
-      restaurantId: restaurant!.id,
-    }))
-  )
+      restaurantId: restaurant.id,
+      description: faker.commerce.productDescription(),
+    },
+    {
+      name: faker.commerce.productName(),
+      priceInCents: Number(
+        faker.commerce.price({
+          min: 190,
+          max: 490,
+          dec: 0,
+        }),
+      ),
+      restaurantId: restaurant.id,
+      description: faker.commerce.productDescription(),
+    },
+    {
+      name: faker.commerce.productName(),
+      priceInCents: Number(
+        faker.commerce.price({
+          min: 190,
+          max: 490,
+          dec: 0,
+        }),
+      ),
+      restaurantId: restaurant.id,
+      description: faker.commerce.productDescription(),
+    },
+    {
+      name: faker.commerce.productName(),
+      priceInCents: Number(
+        faker.commerce.price({
+          min: 190,
+          max: 490,
+          dec: 0,
+        }),
+      ),
+      restaurantId: restaurant.id,
+      description: faker.commerce.productDescription(),
+    },
+    {
+      name: faker.commerce.productName(),
+      priceInCents: Number(
+        faker.commerce.price({
+          min: 190,
+          max: 490,
+          dec: 0,
+        }),
+      ),
+      restaurantId: restaurant.id,
+      description: faker.commerce.productDescription(),
+    },
+    {
+      name: faker.commerce.productName(),
+      priceInCents: Number(
+        faker.commerce.price({
+          min: 190,
+          max: 490,
+          dec: 0,
+        }),
+      ),
+      restaurantId: restaurant.id,
+      description: faker.commerce.productDescription(),
+    },
+    {
+      name: faker.commerce.productName(),
+      priceInCents: Number(
+        faker.commerce.price({
+          min: 190,
+          max: 490,
+          dec: 0,
+        }),
+      ),
+      restaurantId: restaurant.id,
+      description: faker.commerce.productDescription(),
+    },
+    {
+      name: faker.commerce.productName(),
+      priceInCents: Number(
+        faker.commerce.price({
+          min: 190,
+          max: 490,
+          dec: 0,
+        }),
+      ),
+      restaurantId: restaurant.id,
+      description: faker.commerce.productDescription(),
+    },
+    {
+      name: faker.commerce.productName(),
+      priceInCents: Number(
+        faker.commerce.price({
+          min: 190,
+          max: 490,
+          dec: 0,
+        }),
+      ),
+      restaurantId: restaurant.id,
+      description: faker.commerce.productDescription(),
+    },
+  ])
   .returning();
 
-console.log(chalk.cyan("Created fake products."));
+console.log(chalk.yellow("✔ Created products"));
 
-/**
- * Create fake orders
- */
-type OrderItemDataProps = typeof orderItems.$inferInsert;
-type OrderInsertProps = typeof orders.$inferInsert;
-
-const orderItemsData: OrderItemDataProps[] = [];
-const orderData: OrderInsertProps[] = [];
+const ordersToInsert: (typeof orders.$inferInsert)[] = [];
+const orderItemsToPush: (typeof orderItems.$inferInsert)[] = [];
 
 for (let i = 0; i < 200; i++) {
   const orderId = createId();
@@ -116,38 +221,44 @@ for (let i = 0; i < 200; i++) {
   let totalInCents = 0;
 
   orderProducts.forEach((orderProduct) => {
-    const quantity = faker.number.int({ min: 1, max: 3 });
+    const quantity = faker.number.int({
+      min: 1,
+      max: 3,
+    });
+
     totalInCents += orderProduct.priceInCents * quantity;
 
-    orderItemsData.push({
+    orderItemsToPush.push({
       orderId,
       productId: orderProduct.id,
+      priceInCents: orderProduct.priceInCents,
       quantity,
-      priceInCents: totalInCents,
     });
   });
 
-  orderData.push({
+  ordersToInsert.push({
     id: orderId,
-    customerId: faker.helpers.arrayElement([customer!.id]),
-    restaurantId: restaurant!.id,
-    totalInCents,
+    customerId: faker.helpers.arrayElement([customer1.id, customer2.id]),
+    restaurantId: restaurant.id,
     status: faker.helpers.arrayElement([
       "pending",
+      "canceled",
       "processing",
       "delivering",
       "delivered",
-      "canceled",
     ]),
-    created_at: faker.date.recent({ days: 40 }),
+    totalInCents,
+    createdAt: faker.date.recent({
+      days: 40,
+    }),
   });
 }
 
-await db.insert(orders).values(orderData);
-await db.insert(orderItems).values(orderItemsData);
+await db.insert(orders).values(ordersToInsert);
+await db.insert(orderItems).values(orderItemsToPush);
 
-console.log(chalk.red("Created fake order items."));
+console.log(chalk.yellow("✔ Created orders"));
 
-console.log(chalk.blue("Database seeding complete."));
+console.log(chalk.greenBright("Database seeded successfully!"));
 
 process.exit();

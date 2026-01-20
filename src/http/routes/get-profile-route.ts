@@ -1,20 +1,21 @@
+import { db } from "@/db/connection";
 import Elysia from "elysia";
-import { auth } from "../auth";
-import { db } from "../../db/connection";
-import { UnauthorizedError } from "../errors/unauthorized-error";
+import { authentication } from "../authentication";
 
-export const getProfileRoute = new Elysia()
-  .use(auth)
-  .get("/profile", async ({ getCurrentUser }) => {
-    const { userId } = await getCurrentUser();
+export const getProfile = new Elysia()
+  .use(authentication)
+  .get("/me", async ({ getCurrentUser }) => {
+    const { sub: userId } = await getCurrentUser();
 
     const user = await db.query.users.findFirst({
-      where(fields, operators) {
-        return operators.eq(fields.id, userId);
+      where(fields, { eq }) {
+        return eq(fields.id, userId);
       },
     });
 
-    if (!user) throw new UnauthorizedError();
+    if (!user) {
+      throw new Error("User not found.");
+    }
 
     return user;
   });

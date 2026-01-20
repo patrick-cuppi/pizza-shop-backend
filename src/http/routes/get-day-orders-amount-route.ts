@@ -1,58 +1,54 @@
-import Elysia from "elysia";
+import { db } from "@/db/connection";
+import { orders } from "@/db/schema";
 import dayjs from "dayjs";
-import { auth } from "../auth";
-import { UnauthorizedError } from "../errors/unauthorized-error";
-import { db } from "../../db/connection";
-import { orders } from "../../db/schema";
-import { and, count, eq, gte, sql, sum } from "drizzle-orm";
+import { and, count, eq, gte, sql } from "drizzle-orm";
+import Elysia from "elysia";
+import { authentication } from "../authentication";
 
-export const getDayOrdersAmountRoute = new Elysia()
-  .use(auth)
-  .get("/metrics/day-orders-amount", async ({ getCurrentUser }) => {
-    const { restaurantId } = await getCurrentUser();
-
-    if (!restaurantId) {
-      throw new UnauthorizedError();
-    }
+export const getDayOrdersAmount = new Elysia()
+  .use(authentication)
+  .get("/metrics/day-orders-amount", async ({ getManagedRestaurantId }) => {
+    const restaurantId = await getManagedRestaurantId();
 
     const today = dayjs();
     const yesterday = today.subtract(1, "day");
     const startOfYesterday = yesterday.startOf("day");
 
+    const yesterdayWithMonthAndYear = yesterday.format("YYYY-MM-DD");
+    const todayWithMonthAndYear = today.format("YYYY-MM-DD");
+
     const ordersPerDay = await db
       .select({
-        dayWithMonthAndYear: sql<string>`TO_CHAR(${orders.created_at}, 'YYYY-MM-DD')`,
-        amount: count(),
+        dayWithMonthAndYear: sql<string>`TO_CHAR(${orders.createdAt}, 'YYYY-MM-DD')`,
+        amount: count(orders.id),
       })
       .from(orders)
       .where(
         and(
           eq(orders.restaurantId, restaurantId),
-          gte(orders.created_at, startOfYesterday.toDate())
-        )
+          gte(orders.createdAt, startOfYesterday.toDate()),
+        ),
       )
-      .groupBy(sql`TO_CHAR(${orders.created_at}, 'YYYY-MM-DD')`);
+      .groupBy(sql`TO_CHAR(${orders.createdAt}, 'YYYY-MM-DD')`)
+      .having(({ amount }) => gte(amount, 1));
 
-    const todayWithMonthAndYear = today.format("YYYY-MM-DD");
-    const yesterdayWithMonthAndYear = yesterday.format("YYYY-MM-DD");
-
-    const todayOrdersAmount = ordersPerDay.find((orderPerDay) => {
-      return orderPerDay.dayWithMonthAndYear === todayWithMonthAndYear;
+    const todayOrdersAmount = ordersPerDay.find((orderInDay) => {
+      return orderInDay.dayWithMonthAndYear === todayWithMonthAndYear;
     });
 
-    const yesterdayOrdersAmount = ordersPerDay.find((orderPerDay) => {
-      return orderPerDay.dayWithMonthAndYear === yesterdayWithMonthAndYear;
+    const yesterdayOrdersAmount = ordersPerDay.find((orderInDay) => {
+      return orderInDay.dayWithMonthAndYear === yesterdayWithMonthAndYear;
     });
 
     const diffFromYesterday =
-      todayOrdersAmount && yesterdayOrdersAmount
+      yesterdayOrdersAmount && todayOrdersAmount
         ? (todayOrdersAmount.amount * 100) / yesterdayOrdersAmount.amount
         : null;
 
     return {
-      amount: todayOrdersAmount?.amount,
+      amount: todayOrdersAmount?.amount ?? 0,
       diffFromYesterday: diffFromYesterday
         ? Number((diffFromYesterday - 100).toFixed(2))
-        : null,
+        : 0,
     };
   });
