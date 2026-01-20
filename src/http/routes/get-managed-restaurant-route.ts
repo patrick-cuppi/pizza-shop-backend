@@ -1,21 +1,21 @@
+import { db } from "@/db/connection";
 import Elysia from "elysia";
-import { auth } from "../auth";
-import { db } from "../../db/connection";
+import { authentication } from "../authentication";
 
-export const getManagedRestaurantRoute = new Elysia()
-  .use(auth)
-  .get("/managed-restaurant", async ({ getCurrentUser }) => {
-    const { restaurantId } = await getCurrentUser();
+export const getManagedRestaurant = new Elysia()
+  .use(authentication)
+  .get("/managed-restaurant", async ({ getManagedRestaurantId }) => {
+    const restaurantId = await getManagedRestaurantId();
 
-    if (!restaurantId) throw new Error("User does not manage a restaurant");
-
-    const managedRestaurant = await db.query.restaurants.findFirst({
+    const restaurant = await db.query.restaurants.findFirst({
       where(fields, { eq }) {
         return eq(fields.id, restaurantId);
       },
     });
 
-    if (!managedRestaurant) throw new Error("Restaurant not found");
+    if (!restaurant) {
+      throw new Error("Restaurant not found.");
+    }
 
-    return managedRestaurant;
+    return restaurant;
   });

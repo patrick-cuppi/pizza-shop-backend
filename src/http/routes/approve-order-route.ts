@@ -1,46 +1,47 @@
-import Elysia, { t } from "elysia";
-import { auth } from "../auth";
-import { UnauthorizedError } from "../errors/unauthorized-error";
-import { db } from "../../db/connection";
-import { orders } from "../../db/schema";
+import { db } from "@/db/connection";
+import { orders } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import Elysia, { t } from "elysia";
+import { authentication } from "../authentication";
+import { UnauthorizedError } from "./errors/unauthorized-error";
 
-export const approveOrderRoute = new Elysia().use(auth).patch(
-  "/orders/:orderId/approve",
-  async ({ getCurrentUser, params, set }) => {
-    const { orderId } = params;
-    const { restaurantId } = await getCurrentUser();
-
-    if (!restaurantId) {
-      throw new UnauthorizedError();
-    }
+export const approveOrder = new Elysia().use(authentication).patch(
+  "/orders/:id/approve",
+  async ({ getManagedRestaurantId, set, params }) => {
+    const { id: orderId } = params;
+    const restaurantId = await getManagedRestaurantId();
 
     const order = await db.query.orders.findFirst({
-      where(fields, { eq }) {
-        return eq(fields.id, orderId);
+      where(fields, { eq, and }) {
+        return and(
+          eq(fields.id, orderId),
+          eq(fields.restaurantId, restaurantId),
+        );
       },
     });
 
     if (!order) {
-      set.status = 400;
-
-      return { message: "Order not found" };
+      throw new UnauthorizedError();
     }
 
     if (order.status !== "pending") {
       set.status = 400;
 
-      return { message: "Order is not pending" };
+      return { message: "Order was already approved before." };
     }
 
     await db
       .update(orders)
-      .set({ status: "processing" })
+      .set({
+        status: "processing",
+      })
       .where(eq(orders.id, orderId));
+
+    set.status = 204;
   },
   {
     params: t.Object({
-      orderId: t.String(),
+      id: t.String(),
     }),
-  }
+  },
 );

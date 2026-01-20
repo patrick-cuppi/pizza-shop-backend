@@ -1,8 +1,8 @@
+import { db } from "@/db/connection";
+import { restaurants, users } from "@/db/schema";
 import Elysia, { t } from "elysia";
-import { db } from "../../db/connection";
-import { restaurants, users } from "../../db/schema";
 
-export const registerRestaurantRoute = new Elysia().post(
+export const registerRestaurant = new Elysia().post(
   "/restaurants",
   async ({ body, set }) => {
     const { restaurantName, managerName, email, phone } = body;
@@ -15,13 +15,11 @@ export const registerRestaurantRoute = new Elysia().post(
         phone,
         role: "manager",
       })
-      .returning({
-        id: users.id,
-      });
+      .returning();
 
     await db.insert(restaurants).values({
       name: restaurantName,
-      managerId: manager?.id,
+      managerId: manager.id,
     });
 
     set.status = 204;
@@ -30,8 +28,8 @@ export const registerRestaurantRoute = new Elysia().post(
     body: t.Object({
       restaurantName: t.String(),
       managerName: t.String(),
-      email: t.String({ format: "email" }),
       phone: t.String(),
+      email: t.String({ format: "email" }),
     }),
-  }
+  },
 );

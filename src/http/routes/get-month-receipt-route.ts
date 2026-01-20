@@ -1,10 +1,10 @@
-import Elysia from "elysia";
 import dayjs from "dayjs";
-import { auth } from "../auth";
-import { UnauthorizedError } from "../errors/unauthorized-error";
+import { and, eq, gte, sql, sum } from "drizzle-orm";
+import Elysia from "elysia";
 import { db } from "../../db/connection";
 import { orders } from "../../db/schema";
-import { and, eq, gte, sql, sum } from "drizzle-orm";
+import { auth } from "../authentication";
+import { UnauthorizedError } from "./errors/unauthorized-error";
 
 export const getMonthReceipt = new Elysia()
   .use(auth)
@@ -28,8 +28,8 @@ export const getMonthReceipt = new Elysia()
       .where(
         and(
           eq(orders.restaurantId, restaurantId),
-          gte(orders.created_at, startOfLastMonth.toDate())
-        )
+          gte(orders.created_at, startOfLastMonth.toDate()),
+        ),
       )
       .groupBy(sql`TO_CHAR(${orders.created_at}, 'YYYY-MM')`);
 
